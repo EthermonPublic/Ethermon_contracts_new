@@ -28,6 +28,7 @@ contract TokenConvertor is Ownable, AccessControl {
 
     bool public downgradable = true;
     bool public upgradable = true;
+    uint256 ratio = 20;
         
     modifier onlyModerators {
         require(hasRole(MODERATOR_ROLE, msg.sender), "Caller is not a moderator");
@@ -69,7 +70,7 @@ contract TokenConvertor is Ownable, AccessControl {
     function convertToOld(uint256 _amount, address _ownerAdd) public isDowngradable {
         require(msg.sender == newTokenAddress, "Must be called from New Token Contract");
         OldToken oldToken = OldToken(oldTokenAddress);
-        oldToken.transfer(_ownerAdd, _amount.div(20));
+        oldToken.transfer(_ownerAdd, _amount.div(ratio));
     }
 
     function receiveApproval(address _ownerAdd, uint256 _value, address _token, bytes memory _extraData) public isUpgradable {
@@ -78,7 +79,7 @@ contract TokenConvertor is Ownable, AccessControl {
         oldToken.transferFrom(_ownerAdd, address(this), _value);
 
         IERC20 newToken = IERC20(newTokenAddress);
-        newToken.transfer(_ownerAdd, _value.mul(20));
+        newToken.transfer(_ownerAdd, _value.mul(ratio));
     }
 
     function setDowngradable(bool _downgradable) onlyModerators public {
@@ -87,5 +88,9 @@ contract TokenConvertor is Ownable, AccessControl {
 
     function setUpgradable(bool _upgradable) onlyModerators public {
         upgradable = _upgradable;
+    }
+
+    function updateRatio(uint256 _ratio) onlyModerators public {
+        ratio = _ratio;
     }
 }

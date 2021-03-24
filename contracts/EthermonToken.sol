@@ -5,6 +5,20 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Pausable.sol";
 
+interface ILiquiditySyncer {
+    function syncLiquiditySupply(address pool) external;
+}
+
+interface ILocker {
+    /**
+     * @dev Fails if transaction is not allowed. Otherwise returns the penalty.
+     * Returns a bool and a uint16, bool clarifying the penalty applied, and uint16 the penaltyOver1000
+     */
+    function lockOrGetPenalty(address source, address dest)
+    external
+    returns (bool, uint256);
+}
+
 interface TokenRecipient { 
     function receiveApproval(address _from, uint256 _value, address _token, bytes memory _extraData) external; 
 }
@@ -23,6 +37,7 @@ contract EthermonToken is Ownable, AccessControl, ERC20Pausable {
     
     // Ethermon payment
     address public convertorContract;
+    ILocker public locker;
     
     mapping (address => bool) public frozenAccount;
     event FrozenFunds(address target, bool frozen);
@@ -41,6 +56,10 @@ contract EthermonToken is Ownable, AccessControl, ERC20Pausable {
         _setupDecimals(8);
 
         _mint(msg.sender, 400000000 * 10**decimals());
+    }
+
+    function setLocker(address _locker) external onlyOwner() {
+        locker = ILocker(_locker);
     }
     
     function AddModerator(address _newModerator) onlyOwner public {
@@ -76,5 +95,12 @@ contract EthermonToken is Ownable, AccessControl, ERC20Pausable {
     function freezeAccount(address _target, bool _freeze) onlyOwner public {
         frozenAccount[_target] = _freeze;
         FrozenFunds(_target, _freeze);
+    }
+
+    function _transfer(address sender, address recipient, uint256 amount) internal virtual override {
+        if (address(locker) != address(0)) {
+            locker.lockOrGetPenalty(sender, recipient);
+        }
+        return ERC20._transfer(sender, recipient, amount);
     }
 }
