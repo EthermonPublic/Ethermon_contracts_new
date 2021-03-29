@@ -5,102 +5,108 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Pausable.sol";
 
-interface ILiquiditySyncer {
-    function syncLiquiditySupply(address pool) external;
-}
-
 interface ILocker {
-    /**
-     * @dev Fails if transaction is not allowed. Otherwise returns the penalty.
-     * Returns a bool and a uint16, bool clarifying the penalty applied, and uint16 the penaltyOver1000
-     */
-    function lockOrGetPenalty(address source, address dest)
+  /**
+   * @dev Fails if transaction is not allowed. Otherwise returns the penalty.
+   * Returns a bool and a uint16, bool clarifying the penalty applied, and uint16 the penaltyOver1000
+   */
+  function lockOrGetPenalty(address source, address dest)
     external
     returns (bool, uint256);
 }
 
-interface TokenRecipient { 
-    function receiveApproval(address _from, uint256 _value, address _token, bytes memory _extraData) external; 
+interface TokenRecipient {
+  function receiveApproval(
+    address _from,
+    uint256 _value,
+    address _token,
+    bytes memory _extraData
+  ) external;
 }
 
 interface TokenConvertor {
-    function convertToOld(uint256,  address) external;
+  function convertToOld(uint256, address) external;
 }
 
 contract EthermonToken is Ownable, AccessControl, ERC20Pausable {
+  using SafeMath for uint256;
+  // metadata
+  string public version = "1.0";
+  bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 
-    using SafeMath for uint256;
-    // metadata
-    string public version = "1.0";
-    bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
-    
-    
-    // Ethermon payment
-    address public convertorContract;
-    ILocker public locker;
-    
-    mapping (address => bool) public frozenAccount;
-    event FrozenFunds(address target, bool frozen);
-        
+  // Ethermon payment
+  address public convertorContract;
+  ILocker public locker;
 
-    modifier onlyModerators {
-        require(hasRole(MODERATOR_ROLE, msg.sender), "Caller is not a moderator");
-        _;
-    }
-    
-    fallback () payable external {}
-    receive () payable external {}
+  mapping(address => bool) public frozenAccount;
+  event FrozenFunds(address target, bool frozen);
 
-    // constructor    
-    constructor() ERC20("EthermonToken", "EMON") Ownable() Pausable() {
-        _setupDecimals(8);
+  modifier onlyModerators {
+    require(hasRole(MODERATOR_ROLE, msg.sender), "Caller is not a moderator");
+    _;
+  }
 
-        _mint(msg.sender, 400000000 * 10**decimals());
-    }
+  // constructor
+  constructor() ERC20("EthermonToken", "EMON") Ownable() Pausable() {
+    _setupDecimals(18);
 
-    function setLocker(address _locker) external onlyOwner() {
-        locker = ILocker(_locker);
-    }
-    
-    function AddModerator(address _newModerator) onlyOwner public {
-        _setupRole(MODERATOR_ROLE, _newModerator);
-    }
-    
-    function RemoveModerator(address _oldModerator) onlyOwner public {
-        revokeRole(MODERATOR_ROLE, _oldModerator);
-    }
+    _mint(msg.sender, 400000000 * 10**decimals());
+  }
 
-    function UpdateMaintaining(bool _isMaintaining) onlyOwner public {
-        if (_isMaintaining) _pause();
-        else _unpause();
-    }
+  function setLocker(address _locker) external onlyOwner() {
+    locker = ILocker(_locker);
+  }
 
+  function AddModerator(address _newModerator) public onlyOwner {
+    _setupRole(MODERATOR_ROLE, _newModerator);
+  }
 
-    function approveAndCall(address _spender, uint256 _value, bytes memory _extraData) public returns (bool success) {
-        TokenRecipient spender = TokenRecipient(_spender);
-        if (approve(_spender, _value)) {
-            spender.receiveApproval(msg.sender, _value, address(this), _extraData);
-            return true;
-        }
-    }
+  function RemoveModerator(address _oldModerator) public onlyOwner {
+    revokeRole(MODERATOR_ROLE, _oldModerator);
+  }
 
-    function transferAndCall(address _convertor, uint256 _amount, bytes memory _extraData) public returns (bool success) {
-        require(_amount != 0);
-        TokenConvertor convertor = TokenConvertor(_convertor);
-        convertor.convertToOld(_amount, msg.sender);
-        _transfer(_msgSender(), _convertor, _amount);
-        return true;
-    }
-            
-    function freezeAccount(address _target, bool _freeze) onlyOwner public {
-        frozenAccount[_target] = _freeze;
-        FrozenFunds(_target, _freeze);
-    }
+  function UpdateMaintaining(bool _isMaintaining) public onlyOwner {
+    if (_isMaintaining) _pause();
+    else _unpause();
+  }
 
-    function _transfer(address sender, address recipient, uint256 amount) internal virtual override {
-        if (address(locker) != address(0)) {
-            locker.lockOrGetPenalty(sender, recipient);
-        }
-        return ERC20._transfer(sender, recipient, amount);
+  function approveAndCall(
+    address _spender,
+    uint256 _value,
+    bytes memory _extraData
+  ) public returns (bool success) {
+    TokenRecipient spender = TokenRecipient(_spender);
+    if (approve(_spender, _value)) {
+      spender.receiveApproval(msg.sender, _value, address(this), _extraData);
+      return true;
     }
+  }
+
+  function transferAndCall(
+    address _convertor,
+    uint256 _amount,
+    bytes memory _extraData
+  ) public returns (bool success) {
+    require(_amount != 0);
+    TokenConvertor convertor = TokenConvertor(_convertor);
+    convertor.convertToOld(_amount, msg.sender);
+    _transfer(_msgSender(), _convertor, _amount);
+    return true;
+  }
+
+  function freezeAccount(address _target, bool _freeze) public onlyOwner {
+    frozenAccount[_target] = _freeze;
+    FrozenFunds(_target, _freeze);
+  }
+
+  function _transfer(
+    address sender,
+    address recipient,
+    uint256 amount
+  ) internal virtual override {
+    if (address(locker) != address(0)) {
+      locker.lockOrGetPenalty(sender, recipient);
+    }
+    return ERC20._transfer(sender, recipient, amount);
+  }
 }

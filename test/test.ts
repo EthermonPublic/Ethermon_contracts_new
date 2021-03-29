@@ -9,6 +9,7 @@ describe("Test Token Converting", function () {
   let ownerAdd, oldTokenAdd, newTokenAdd, convertorAdd;
 
   const decimal: BN = BN.from(10).pow(BN.from(8));
+  const newDecimal: BN = BN.from(10).pow(BN.from(18));
 
   beforeEach(async function () {
     [owner, account1, account2, account3] = await ethers.getSigners();
@@ -45,7 +46,7 @@ describe("Test Token Converting", function () {
     // Initiate token
     await newToken.transfer(
       convertor.address,
-      BN.from(8000000).mul(decimal).toString()
+      BN.from(8000000).mul(newDecimal).toString()
     );
     await oldToken.transfer(
       convertor.address,
@@ -60,7 +61,7 @@ describe("Test Token Converting", function () {
       BN.from("5000000").mul(decimal)
     );
     expect(await newToken.balanceOf(convertorAdd)).to.eq(
-      BN.from(8000000).mul(decimal)
+      BN.from(8000000).mul(newDecimal)
     );
     expect(await oldToken.balanceOf(convertorAdd)).to.eq(
       BN.from(400000).mul(decimal)
@@ -70,10 +71,10 @@ describe("Test Token Converting", function () {
   it("Test New - Old Token Convertion succeed", async function () {
     const oldBalance: BN = await oldToken.balanceOf(ownerAdd);
     const newBalance: BN = await newToken.balanceOf(ownerAdd);
-    const amount: BN = BN.from(100).mul(decimal);
+    const amount: BN = BN.from(100).mul(newDecimal);
     await newToken.transferAndCall(convertorAdd, amount, []);
     expect(await oldToken.balanceOf(ownerAdd)).to.eq(
-      oldBalance.add(amount.div(20))
+      oldBalance.add(amount.div(20).div(newDecimal).mul(decimal))
     );
     expect(await newToken.balanceOf(ownerAdd)).to.eq(newBalance.sub(amount));
   });
@@ -85,7 +86,7 @@ describe("Test Token Converting", function () {
     await oldToken.approveAndCall(convertor.address, amount, []);
     expect(await oldToken.balanceOf(ownerAdd)).to.eq(oldBalance.sub(amount));
     expect(await newToken.balanceOf(ownerAdd)).to.eq(
-      newBalance.add(amount.mul(20))
+      newBalance.add(amount.mul(20).div(decimal).mul(newDecimal))
     );
   });
 
