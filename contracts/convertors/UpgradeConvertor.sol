@@ -4,23 +4,7 @@ pragma solidity ^0.7.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "./IERC20.sol";
-
-interface OldToken {
-  function decimals() external view returns (uint256);
-
-  function totalSupply() external view returns (uint256);
-
-  function balanceOf(address account) external view returns (uint256);
-
-  function transfer(address recipient, uint256 amount) external;
-
-  function transferFrom(
-    address _from,
-    address _to,
-    uint256 _value
-  ) external returns (bool success);
-}
+import "../interface/IERC20.sol";
 
 contract TokenConvertor is Ownable, AccessControl {
   using SafeMath for uint256;
@@ -51,10 +35,6 @@ contract TokenConvertor is Ownable, AccessControl {
     require(downgradable == true, "Downgradable disallowed");
     _;
   }
-
-  fallback() external payable {}
-
-  receive() external payable {}
 
   // constructor
   constructor() {
